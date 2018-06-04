@@ -39,7 +39,6 @@ static GaugeConfigSection *
 NextUnusedGauge(std::vector<GaugeConfigSection *> *gauges);
 static bool SortByFlowAccumFS(FAMSearch *fs1, FAMSearch *fs2);
 static bool SortByFlowAccum(GaugeConfigSection *d1, GaugeConfigSection *d2);
-static bool SortNodesByFlowAccum(GridNode d1, GridNode d2);
 static void FixFAM();
 static int FlowsOut(long nextX, long nextY, FLOW_DIR dir, long currentHeight);
 static int FlowsIn(long nextX, long nextY, FLOW_DIR dir, long currentHeight,
@@ -1099,8 +1098,6 @@ void CarveBasin(
     }
   }
 
-  std::sort(nodes->begin(), nodes->end(), SortNodesByFlowAccum);
-
   /*FILE *fp = fopen("gauge_data.txt", "w");
   FILE *fp2 = fopen("basin_data.txt", "w");
   for (std::vector<GaugeConfigSection *>::iterator itr = gauges->begin(); itr !=
@@ -1329,10 +1326,6 @@ bool SortByFlowAccum(GaugeConfigSection *d1, GaugeConfigSection *d2) {
 
 bool SortByFlowAccumFS(FAMSearch *fs1, FAMSearch *fs2) {
   return fs1->fa > fs2->fa;
-}
-
-bool SortNodesByFlowAccum(GridNode d1, GridNode d2) {
-  return d1.fac < d2.fac;
 }
 
 bool CheckESRIDDM() {
