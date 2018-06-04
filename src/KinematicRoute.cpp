@@ -14,6 +14,12 @@ static const char *stateStrings[] = {
 KWRoute::KWRoute() {
   index1 = 0;
   index2 = 0;
+  
+  indices.resize(&nodes->size);
+  for(size_t i = 0; i < indices.size(); i++)
+  {
+    indices[i] = 0;
+  }
 }
 
 KWRoute::~KWRoute() {}
@@ -73,6 +79,7 @@ bool KWRoute::InitializeModel(
 
   // Fill in modelIndex in the gridNodes
   size_t numNodes = nodes->size();
+  int idx = 0;
   for (size_t i = 0; i < numNodes; i++) {
     GridNode *node = &nodes->at(i);
     node->modelIndex = i;
@@ -86,13 +93,17 @@ bool KWRoute::InitializeModel(
     for (int p = 0; p < STATE_KW_QTY; p++) {
       cNode->states[p] = 0.0;
     }
-    if (index1 == 0 && node->fac >= 1)
-    {
-      index1 = i;
-    }
-    else if (index2 == 0 && node->fac >= 2)
-    {
-      index2 = i;
+    // if (index1 == 0 && node->fac >= 1)
+    // {
+    //   index1 = i;
+    // }
+    // else if (index2 == 0 && node->fac >= 2)
+    // {
+    //   index2 = i;
+    // }
+    if(indices[idx] == 0 && node->fac >= idx+1) {
+      indices[idx] = i;
+      idx++;
     }
   }
 
@@ -186,29 +197,41 @@ bool KWRoute::Route(float stepHours, std::vector<float> *fastFlow,
   //   RouteInt(stepHours * 3600.0f, &(nodes->at(i)), cNode, fastFlow->at(i),
   //            slowFlow->at(i));
   // }
-  #pragma omp parallel for
-  for (long i = 0; i < index1; i++){
+  // #pragma omp parallel for
+  // for (long i = 0; i < index1; i++){
   
-    KWGridNode *cNode = &(kwNodes[i]);
-    RouteInt(stepHours * 3600.0f, &(nodes->at(i)), cNode, fastFlow->at(i),
-              slowFlow->at(i));
-  }
+  //   KWGridNode *cNode = &(kwNodes[i]);
+  //   RouteInt(stepHours * 3600.0f, &(nodes->at(i)), cNode, fastFlow->at(i),
+  //             slowFlow->at(i));
+  // }
   
+  // #pragma omp parallel for
+  // for (long i = index1; i < index2; i++){
 
-  #pragma omp parallel for
-  for (long i = index1; i < index2; i++){
+  // KWGridNode *cNode = &(kwNodes[i]);
+  // RouteInt(stepHours * 3600.0f, &(nodes->at(i)), cNode, fastFlow->at(i),
+  //           slowFlow->at(i));
+  // }
 
-  KWGridNode *cNode = &(kwNodes[i]);
-  RouteInt(stepHours * 3600.0f, &(nodes->at(i)), cNode, fastFlow->at(i),
-            slowFlow->at(i));
+  // for (long i = index2; i < (long)numNodes; i++)
+  // {
+  //   KWGridNode *cNode = &(kwNodes[i]);
+  //   RouteInt(stepHours * 3600.0f, &(nodes->at(i)), cNode, fastFlow->at(i),
+  //           slowFlow->at(i));
+  // }
+
+  // PARALLELIZED BY LEVEL EXECUTION OF KW ROUTING
+  int lower_bound = 0;
+  for(long i = 0; i < indices.size(); i++){
+    #pragma acc parallel loop
+    for(long j = lower_bound; j < indices[i]; j++){
+      KWGridNode *cNode = &(kwNodes[i]);
+      RouteInt(stepHours * 3600.0f, &(nodes->at(j)), cNode, fastFlow->at(j), slowFlow->at(j));
+    }
+    lower_bound = indices[i];
   }
 
-  for (long i = index2; i < (long)numNodes; i++)
-  {
-    KWGridNode *cNode = &(kwNodes[i]);
-    RouteInt(stepHours * 3600.0f, &(nodes->at(i)), cNode, fastFlow->at(i),
-            slowFlow->at(i));
-  }
+
   for (size_t i = 0; i < numNodes; i++)
   {
     KWGridNode *cNode = &(kwNodes[i]);
