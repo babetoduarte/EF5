@@ -196,12 +196,12 @@ bool KWRoute::Route(float stepHours, std::vector<float> *fastFlow,
   
 
   #pragma omp parallel for
-  for (long i = index1; i < index2; i++)
+  for (long i = index1; i < index2; i++){
 
   KWGridNode *cNode = &(kwNodes[i]);
   RouteInt(stepHours * 3600.0f, &(nodes->at(i)), cNode, fastFlow->at(i),
             slowFlow->at(i));
-  
+  }
 
   for (long i = index2; i < (long)numNodes; i++)
   {
