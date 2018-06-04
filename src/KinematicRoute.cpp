@@ -15,7 +15,7 @@ KWRoute::KWRoute() {
   // index1 = 0;
   // index2 = 0;
   
-  indices.resize(&nodes->size);
+  indices.resize(nodes->size());
   for(size_t i = 0; i < indices.size(); i++)
   {
     indices[i] = 0;
