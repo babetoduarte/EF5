@@ -187,12 +187,12 @@ bool KWRoute::Route(float stepHours, std::vector<float> *fastFlow,
   //            slowFlow->at(i));
   // }
   #pragma omp parallel for
-  for (long i = 0; i < index1; i++)
+  for (long i = 0; i < index1; i++){
   
     KWGridNode *cNode = &(kwNodes[i]);
     RouteInt(stepHours * 3600.0f, &(nodes->at(i)), cNode, fastFlow->at(i),
               slowFlow->at(i));
-    
+  }
   
 
   #pragma omp parallel for
