@@ -12,8 +12,8 @@ static const char *stateStrings[] = {
 };
 
 KWRoute::KWRoute() {
-  index1 = 0;
-  index2 = 0;
+  // index1 = 0;
+  // index2 = 0;
   
   indices.resize(&nodes->size);
   for(size_t i = 0; i < indices.size(); i++)
@@ -107,7 +107,7 @@ bool KWRoute::InitializeModel(
     }
   }
 
-  printf("Index1 is %li and index2 is %li\n", index1, index2);
+  // printf("Index1 is %li and index2 is %li\n", index1, index2);
   InitializeParameters(paramSettings, paramGrids);
   initialized = false;
   maxSpeed = 1.0;
