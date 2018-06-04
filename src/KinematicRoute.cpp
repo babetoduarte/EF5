@@ -14,11 +14,6 @@ static const char *stateStrings[] = {
 KWRoute::KWRoute() {
   // index1 = 0;
   // index2 = 0;
-  indices.reserve(nodes->size());
-  for(size_t i = 0; i < nodes->size(); i++)
-  {
-    indices.push_back(0);
-  }
 }
 
 KWRoute::~KWRoute() {}
@@ -78,6 +73,10 @@ bool KWRoute::InitializeModel(
 
   // Fill in modelIndex in the gridNodes
   size_t numNodes = nodes->size();
+  indices.reserve(nodes->size());
+  for (size_t i = 0; i < nodes->size(); i++) {
+    indices.push_back(0);
+  }
   int idx = 0;
   for (size_t i = 0; i < numNodes; i++) {
     GridNode *node = &nodes->at(i);
