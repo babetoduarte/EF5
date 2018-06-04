@@ -14,8 +14,8 @@ static const char *stateStrings[] = {
 KWRoute::KWRoute() {
   // index1 = 0;
   // index2 = 0;
-  indices.reserve(kwNodes.size());
-  for(size_t i = 0; i < kwNodes.size(); i++)
+  indices.reserve(nodes->size());
+  for(size_t i = 0; i < nodes->size(); i++)
   {
     indices.push_back(0);
   }
