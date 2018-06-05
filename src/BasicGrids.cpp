@@ -1,6 +1,7 @@
 #include "BasicGrids.h"
 #include "AscGrid.h"
 #include "BasicConfigSection.h"
+#include "CommonParallel.h"
 #include "Defines.h"
 #include "Messages.h"
 #include "TifGrid.h"
@@ -13,6 +14,9 @@
 #include <map>
 #include <stack>
 #include <stdlib.h>
+
+std::vector<FAcPos> FAcIndexes;
+std::vector<long> FAcCount(FAC_COUNT, 0);
 
 FloatGrid *g_DEM;
 FloatGrid *g_DDM;
@@ -1091,12 +1095,36 @@ void CarveBasin(
 
   nodes->resize(currentNode);
 
+  // Count FAc
+  long MaxFAc = 0;
+  long CurrentSize = FAcCount.size();
+
+  FAcIndexes.resize(nodes->size());
   for (long i = nodes->size() - 1; i >= 0; i--) {
     GridNode *node = &nodes->at(i);
+
+    FAcIndexes[i].fac = node->fac;
+    FAcIndexes[i].index = i;
+    // Look for Max FAc
+    if(node->fac > MaxFAc)
+      MaxFAc = node->fac;
+    // Double current size of FAcCount until MaxFAc fits
+    if(MaxFAc > CurrentSize) {
+      while(MaxFAc > CurrentSize)
+    	CurrentSize *= 2;
+      FAcCount.resize(2 * CurrentSize);
+    }
+    // Count 
+    FAcCount[node->fac]++;
+
     if (node->downStreamNode != INVALID_DOWNSTREAM_NODE) {
       nodes->at(node->downStreamNode).contribArea += node->contribArea;
     }
   }
+
+  // Recompact vector
+  FAcCount.resize(MaxFAc + 1);
+  std::sort(FAcIndexes.begin(), FAcIndexes.end(), SortNodesByFlowAccum);
 
   /*FILE *fp = fopen("gauge_data.txt", "w");
   FILE *fp2 = fopen("basin_data.txt", "w");
