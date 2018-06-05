@@ -183,11 +183,11 @@ bool KWRoute::Route(float stepHours, std::vector<float> *fastFlow,
   // }
 
   // PARALLELIZED BY LEVEL EXECUTION OF FAc ROUTING 
-  int i;
   for (std::map<long, std::vector<int> >::const_iterator it = FAcMapping.begin(); it != FAcMapping.end(); ++it) {
-#pragma acc parallel loop
+    //#pragma acc parallel loop
+#pragma omp parallel for
     for(long j = 0; j < it->second.size(); j++) {
-      i = it->second[j];
+      int i = it->second[j];
       KWGridNode *cNode = &(kwNodes[i]);
       RouteInt(stepHours * 3600.0f, &(nodes->at(i)), cNode, fastFlow->at(i), slowFlow->at(i));
     }
@@ -225,9 +225,7 @@ bool KWRoute::Route(float stepHours, std::vector<float> *fastFlow,
 
 void KWRoute::RouteInt(float stepSeconds, GridNode *node, KWGridNode *cNode,
                        float fastFlow, float slowFlow) {
-
   if (!cNode->channelGridCell) {
-
     float beta = 0.6;
     float alpha = cNode->params[PARAM_KINEMATIC_ALPHA0];
 
@@ -279,12 +277,14 @@ void KWRoute::RouteInt(float stepSeconds, GridNode *node, KWGridNode *cNode,
 
     cNode->states[STATE_KW_PQ] = newq;
     if (node->downStreamNode != INVALID_DOWNSTREAM_NODE) {
-      kwNodes[nodes->at(node->downStreamNode).modelIndex]
+#pragma omp critical
+      {
+	kwNodes[nodes->at(node->downStreamNode).modelIndex]
           .incomingWaterOverland += newq;
+      }
     }
 
     cNode->incomingWater[KW_LAYER_FASTFLOW] = newq;
-
     // Add Interflow Excess Water to Reservoir
     cNode->states[STATE_KW_IR] += slowFlow;
     double interflowLeak =
@@ -319,9 +319,7 @@ void KWRoute::RouteInt(float stepSeconds, GridNode *node, KWGridNode *cNode,
                           ->incomingWater[KW_LAYER_INTERFLOW]);
       *res += leakAmount; // Make this an atomic add for parallelization
     }
-
   } else {
-
     // First do overland routing
 
     float beta = 0.6;
@@ -431,8 +429,11 @@ void KWRoute::RouteInt(float stepSeconds, GridNode *node, KWGridNode *cNode,
     cNode->states[STATE_KW_PQ] =
         newWater; // Update previous Q for further routing if "steps" > 1
     if (node->downStreamNode != INVALID_DOWNSTREAM_NODE) {
-      kwNodes[nodes->at(node->downStreamNode).modelIndex]
-          .incomingWaterChannel += newWater;
+#pragma omp critical
+      {
+	kwNodes[nodes->at(node->downStreamNode).modelIndex]
+	  .incomingWaterChannel += newWater;
+      }
     }
 
     cNode->incomingWater[KW_LAYER_FASTFLOW] = newWater;
