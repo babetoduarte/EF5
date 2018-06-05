@@ -2,6 +2,7 @@
 #include "AscGrid.h"
 #include "CommonParallel.h"
 #include "DatedName.h"
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -74,6 +75,10 @@ bool KWRoute::InitializeModel(
 
   // Fill in modelIndex in the gridNodes
   size_t numNodes = nodes->size();
+  // Count FAc
+  MaxFAc = 0;
+  long CurrentSize = FAcCount.size();
+  FAcIndexes.resize(nodes->size());
   for (size_t i = 0; i < numNodes; i++) {
     GridNode *node = &nodes->at(i);
     node->modelIndex = i;
@@ -87,7 +92,26 @@ bool KWRoute::InitializeModel(
     for (int p = 0; p < STATE_KW_QTY; p++) {
       cNode->states[p] = 0.0;
     }
+      
+    FAcIndexes[i].fac = node->fac;
+    FAcIndexes[i].index = i;
+    // Look for Max FAc
+    if(node->fac > MaxFAc)
+      MaxFAc = node->fac;
+    // Double current size of FAcCount until MaxFAc fits
+    // if(MaxFAc > CurrentSize) {
+    //   CurrentSize *= 2;
+    //   while(MaxFAc > CurrentSize)
+    // 	CurrentSize *= 2;
+    //   FAcCount.resize(CurrentSize);
+    // }
+    // Count 
+    FAcCount[node->fac]++;
   }
+
+  // Recompact vector
+  // FAcCount.resize(MaxFAc + 1);
+  std::sort(FAcIndexes.begin(), FAcIndexes.end(), SortNodesByFlowAccum);
 
   // printf("Index1 is %li and index2 is %li\n", index1, index2);
   InitializeParameters(paramSettings, paramGrids);
@@ -181,15 +205,20 @@ bool KWRoute::Route(float stepHours, std::vector<float> *fastFlow,
 
   // PARALLELIZED BY LEVEL EXECUTION OF FAc ROUTING 
   int lower_bound = 0;
-  for (int i = 0; i < FAcCount.size(); i++) {
+  std::unordered_map<long,long>::const_iterator it;
+
+  for (int i = 0; i < MaxFAc; i++) {
     //#pragma omp parallel for
+    it = FAcCount.find(i);
+    if (it != FAcCount.end()) {
 #pragma acc parallel loop
-    for(long j = 0; j < FAcCount[i]; j++) {
-      int k = FAcIndexes[lower_bound + j].index;
-      KWGridNode *cNode = &(kwNodes[k]);
-      RouteInt(stepHours * 3600.0f, &(nodes->at(k)), cNode, fastFlow->at(k), slowFlow->at(k));
+      for(long j = 0; j < FAcCount[i]; j++) {
+	int k = FAcIndexes[lower_bound + j].index;
+	KWGridNode *cNode = &(kwNodes[k]);
+	RouteInt(stepHours * 3600.0f, &(nodes->at(k)), cNode, fastFlow->at(k), slowFlow->at(k));
+      }
+      lower_bound += FAcCount[i];
     }
-    lower_bound += FAcCount[i];
   }
 
   for (size_t i = 0; i < numNodes; i++)
