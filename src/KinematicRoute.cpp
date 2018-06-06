@@ -184,8 +184,7 @@ bool KWRoute::Route(float stepHours, std::vector<float> *fastFlow,
 
   // PARALLELIZED BY LEVEL EXECUTION OF FAc ROUTING 
   for (std::map<long, std::vector<int> >::const_iterator it = FAcMapping.begin(); it != FAcMapping.end(); ++it) {
-    //#pragma acc parallel loop
-#pragma omp parallel for
+#pragma acc parallel loop
     for(long j = 0; j < it->second.size(); j++) {
       int i = it->second[j];
       KWGridNode *cNode = &(kwNodes[i]);
@@ -277,11 +276,8 @@ void KWRoute::RouteInt(float stepSeconds, GridNode *node, KWGridNode *cNode,
 
     cNode->states[STATE_KW_PQ] = newq;
     if (node->downStreamNode != INVALID_DOWNSTREAM_NODE) {
-#pragma omp critical
-      {
-	kwNodes[nodes->at(node->downStreamNode).modelIndex]
-          .incomingWaterOverland += newq;
-      }
+#pragma acc atomic update
+	kwNodes[nodes->at(node->downStreamNode).modelIndex].incomingWaterOverland += newq;
     }
 
     cNode->incomingWater[KW_LAYER_FASTFLOW] = newq;
@@ -429,11 +425,8 @@ void KWRoute::RouteInt(float stepSeconds, GridNode *node, KWGridNode *cNode,
     cNode->states[STATE_KW_PQ] =
         newWater; // Update previous Q for further routing if "steps" > 1
     if (node->downStreamNode != INVALID_DOWNSTREAM_NODE) {
-#pragma omp critical
-      {
-	kwNodes[nodes->at(node->downStreamNode).modelIndex]
-	  .incomingWaterChannel += newWater;
-      }
+#pragma acc atomic update
+	kwNodes[nodes->at(node->downStreamNode).modelIndex].incomingWaterChannel += newWater;
     }
 
     cNode->incomingWater[KW_LAYER_FASTFLOW] = newWater;

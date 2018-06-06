@@ -111,6 +111,7 @@ bool CRESTModel::WaterBalance(float stepHours, std::vector<float> *precip,
 #if _OPENMP
   //#pragma omp parallel for
 #endif
+#pragma acc parallel loop
   for (size_t i = 0; i < numNodes; i++) {
     GridNode *node = &nodes->at(i);
     CRESTGridNode *cNode = &(crestNodes[i]);
