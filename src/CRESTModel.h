@@ -51,6 +51,14 @@ private:
 
   std::vector<GridNode> *nodes;
   std::vector<CRESTGridNode> crestNodes;
+  GridNode *nodesPtr;
+  long gridSize;
+  CRESTGridNode *crestNodesPtr;
+  float *precipPtr;
+  float *petPtr;
+  float *fastFlowPtr;
+  float *slowFlowPtr;
+  float *soilMoisturePtr;
 };
 
 #endif

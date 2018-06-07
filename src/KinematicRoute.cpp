@@ -7,6 +7,11 @@
 #include <iostream>
 #include <map>
 #include <limits>
+#include <queue>
+#include <utility>
+#include <stdexcept>
+#include <assert.h>
+#include "omp.h"
 
 const float STD_AN_INFINITY_POSITIVE = std::numeric_limits<float>::infinity();
 
@@ -18,6 +23,70 @@ extern "C" {
 
 // fac -> index map
 static std::map<long,std::vector<int> > FAcMapping;
+
+std::pair<std::vector<int>, std::vector<int>> GetDependencies(const std::vector<GridNode> &nodes){
+  std::vector<int> deps(nodes.size(),0); //How many upstream dependencies each node has
+  std::vector<int> ordering;             //Order in which nodes must be processed to ensure causal independence
+  std::vector<int> levels;               //Set of half-open intervals defining parallelisable sets of nodes
+
+  ordering.reserve(nodes.size());        //Ordering will eventually include every node
+
+  //q will be used to generate a breadth-first traversal of the flow graph
+  std::queue<int> q;                     
+
+  //Add an initial marker so each level is defined by a pair of integers
+  //indicating a half-open interval [start,end).
+  levels.emplace_back(0);
+
+  // for(unsigned int i=0;i<nodes.size();i++) 
+  //   std::cout << "dn "<<nodes[i].downStreamNode << std::endl;
+
+  // throw std::runtime_error("stop");
+
+  //Loop through all nodes figuring out how many upstream dependencies they each
+  //have
+  for(unsigned int i=0;i<nodes.size();i++) 
+    if (nodes[i].downStreamNode != INVALID_DOWNSTREAM_NODE)
+      deps[nodes[i].downStreamNode]++;
+
+  //Find those nodes with no upstream dependencies
+  for(unsigned int i=0;i<deps.size();i++)
+    if(deps[i]==0)                       //Node has no upstream dependencies, so it's now part of the frontier of the BFS
+      q.emplace(i);                      //Node was a local maxima, so it is part of the initial frontier of the BFS
+  q.emplace(-1);                         //Special marker that indicates the end of a level
+    
+  while(true){                           //Break condition is below
+    const auto c = q.front();            //Index of current node
+    q.pop();
+
+    if(c==-1){                           //This is a level marker, so we need to make a note
+      levels.emplace_back(ordering.size());   //Make the note
+      if(q.empty())                      //If the queue is empty after eliminating the level marker
+        break;                           //then we've reached the end.
+      q.emplace(-1);                     //Put a new marker on the end of the queue
+      continue;
+    }
+
+    const auto &cn = nodes[c];           //The current node itself
+    const auto dn  = cn.downStreamNode;  //Index of the downstream node
+    ordering.emplace_back(c);                 //Place the node in the ordering
+    if (dn != INVALID_DOWNSTREAM_NODE)
+      if(--deps[dn]==0)                    //Downstream neighbour has one fewer upstream dependency. Add it to the queue if there are no upstream dependencies.
+	q.emplace(cn.downStreamNode);      //Place the downstream neighbour into the queue
+  }
+
+  //Add a final marker so each level is defined by a pair of integers indicating
+  //a half-open interval [start,end).
+  levels.emplace_back(ordering.size());
+
+  //Vector allocation is exponential, so we end up using more space than we
+  //need. This shrinks the vectors to their minimum necessary length, i.e. there
+  //is no reserved space.
+  ordering.shrink_to_fit();
+  levels.shrink_to_fit();
+
+  return std::make_pair(ordering,levels);
+}
 
 static const char *stateStrings[] = {
     "pCQ",
@@ -83,6 +152,10 @@ bool KWRoute::InitializeModel(
     kwNodes.resize(nodes->size());
   }
 
+  auto orderingLevelsPair = GetDependencies(*nodes);
+  ordering = orderingLevelsPair.first;
+  levels = orderingLevelsPair.second;
+
   #pragma acc enter data create(this[0:1])
 
   // Fill in modelIndex in the gridNodes
@@ -107,6 +180,18 @@ bool KWRoute::InitializeModel(
   InitializeParameters(paramSettings, paramGrids);
   initialized = false;
   maxSpeed = 1.0;
+
+  gridSize = nodes->size();
+  nodesPtr = nodes->data();
+#pragma acc enter data copyin(nodesPtr[0:gridSize])
+
+  kwNodesPtr = kwNodes.data();
+  assert(gridSize == kwNodes.size());
+#pragma acc enter data copyin(kwNodesPtr[0:gridSize])
+
+  orderingPtr = ordering.data();
+  assert(gridSize == ordering.size());
+#pragma acc enter data copyin(orderingPtr[0:gridSize])
 
   return true;
 }
@@ -153,6 +238,14 @@ void KWRoute::InitializeStates(TimeVar *beginTime, char *statePath,
              stateStrings[p], buffer);
     }
   }
+
+fastFlowPtr = fastFlow->data();
+assert(gridSize == fastFlow->size());
+#pragma acc enter data copyin(fastFlowPtr[0:gridSize])
+
+slowFlowPtr = slowFlow->data();
+assert(gridSize == slowFlow->size());
+#pragma acc enter data copyin(slowFlowPtr[0:gridSize])
 }
 
 void KWRoute::SaveStates(TimeVar *currentTime, char *statePath,
@@ -187,67 +280,39 @@ bool KWRoute::Route(float stepHours, std::vector<float> *fastFlow,
   }
 
   size_t numNodes = nodes->size();
-  // for (long i = numNodes - 1; i >= 0; i--) {
-  //   KWGridNode *cNode = &(kwNodes[i]);
-  //   RouteInt(stepHours * 3600.0f, &(nodes->at(i)), cNode, fastFlow->at(i),
-  //            slowFlow->at(i));
-  // }
-    
-GridNode *nodesPtr = nodes->data();
-long nodesSize = nodes->size();
-#pragma acc enter data copyin(nodesPtr[0:nodesSize])
 
-KWGridNode *kwNodesPtr = kwNodes.data();
-long kwNodesSize = kwNodes.size();
-#pragma acc enter data copyin(kwNodesPtr[0:kwNodesSize])
+  dischargePtr = discharge->data();
 
-float *fastFlowPtr = fastFlow->data();
-long fastFlowSize = fastFlow->size();
-#pragma acc enter data copyin(fastFlowPtr[0:fastFlowSize])
-
-float *slowFlowPtr = slowFlow->data();
-long slowFlowSize = slowFlow->size();
-#pragma acc enter data copyin(slowFlowPtr[0:slowFlowSize])
-
-// PARALLELIZED BY LEVEL EXECUTION OF FAc ROUTING 
- // for (std::map<long, std::vector<int> >::const_iterator it = FAcMapping.begin(); it != FAcMapping.end(); ++it) {
- //   int *mappingPtr = (int *) it->second.data();
- //   long mappingSize = it->second.size();
- //   //#pragma acc enter data copyin(mappingPtr[0:mappingSize])
- //   //#pragma acc parallel loop default(present)
- //   for(long j = 0; j < mappingSize; j++) {
- //     int k = mappingPtr[j];
- //     RouteInt(stepHours * 3600.0f, &nodesPtr[k], &kwNodesPtr[k], fastFlowPtr[k], slowFlowPtr[k]);
- //   }
- // }
- for (std::map<long, std::vector<int> >::const_iterator it = FAcMapping.begin(); it != FAcMapping.end(); ++it) {
-   int *mappingPtr = (int *) it->second.data();
-   long mappingSize = it->second.size();
-   // #pragma acc enter data copyin(mappingPtr[0:mappingSize])
-   // #pragma acc parallel loop default(present)
-    for(long j = 0; j < mappingSize; j++) {
-      int k = mappingPtr[j];
-      RouteInt(stepHours * 3600.0f, &nodesPtr[k], &kwNodesPtr[k], fastFlowPtr[k], slowFlowPtr[k]);
+  for(unsigned int lvl = 0; lvl < levels.size() - 1; lvl++) {
+    const auto lvlstart = levels[lvl];
+    const auto lvlend = levels[lvl + 1];
+#pragma acc parallel loop independent async(1) default(present)
+    for(unsigned int o = lvlstart; o < lvlend; o++) {
+      const auto c = orderingPtr[o];
+      RouteInt(stepHours * 3600.0f, &nodesPtr[c], &kwNodesPtr[c], fastFlowPtr[c], slowFlowPtr[c]);
+      // const auto c = ordering.at(o);
+      // RouteInt(stepHours * 3600.0f, &nodes->at(c), &kwNodes.at(c), fastFlow->at(c), slowFlow->at(c));
     }
   }
- //#pragma acc exit data copyout(nodesPtr[0:nodesSize], kwNodesPtr[0:kwNodesSize], fastFlowPtr[0:fastFlowSize], slowFlowPtr[0:slowFlowSize])
+#pragma acc wait(1)
 
+#pragma acc parallel loop independent default(present)
   for (size_t i = 0; i < numNodes; i++)
   {
-    KWGridNode *cNode = &(kwNodes[i]);
-    slowFlow->at(i) = 0.0; // cNode->incomingWater[KW_LAYER_INTERFLOW];
-    fastFlow->at(i) = 0.0; // cNode->incomingWater[KW_LAYER_FASTFLOW];
+    KWGridNode *cNode = &(kwNodesPtr[i]);
+    slowFlowPtr[i] = 0.0; // cNode->incomingWater[KW_LAYER_INTERFLOW];
+    fastFlowPtr[i] = 0.0; // cNode->incomingWater[KW_LAYER_FASTFLOW];
     cNode->incomingWaterOverland = 0.0;
     cNode->incomingWaterChannel = 0.0;
     if (!cNode->channelGridCell)
     {
-      float q = cNode->incomingWater[KW_LAYER_FASTFLOW] * nodes->at(i).horLen;
-      q += (cNode->incomingWater[KW_LAYER_INTERFLOW] * nodes->at(i).area / 3.6);
-      discharge->at(i) = q; // * (stepHours * 3600.0f);
+      float q = cNode->incomingWater[KW_LAYER_FASTFLOW] * nodesPtr[i].horLen;
+      q += (cNode->incomingWater[KW_LAYER_INTERFLOW] * nodesPtr[i].area / 3.6);
+      dischargePtr[i]= q; // * (stepHours * 3600.0f);
     }
     else
     {
-      discharge->at(i) = cNode->incomingWater[KW_LAYER_FASTFLOW];
+      dischargePtr[i] = cNode->incomingWater[KW_LAYER_FASTFLOW];
     }
     cNode->states[STATE_KW_IR] =
         cNode->states[STATE_KW_IR] + cNode->incomingWater[KW_LAYER_INTERFLOW];
@@ -256,7 +321,7 @@ long slowFlowSize = slowFlow->size();
     cNode->incomingWater[KW_LAYER_FASTFLOW] =
         0.0; // Zero here so we can save states
     }
-
+#pragma acc exit data copyout(nodesPtr[0:gridSize], kwNodesPtr[0:gridSize], fastFlowPtr[0:gridSize], slowFlowPtr[0:gridSize], dischargePtr[0:gridSize])
   // InitializeRouting(stepHours * 3600.0f);
 
   return true;
@@ -318,9 +383,10 @@ void KWRoute::RouteInt(float stepSeconds, GridNode *node, KWGridNode *cNode,
 
     cNode->states[STATE_KW_PQ] = newq;
     if (node->downStreamNode != INVALID_DOWNSTREAM_NODE) {
-#pragma acc atomic update
- 	kwNodes[nodes->at(node->downStreamNode).modelIndex].incomingWaterOverland += newq;
-    }
+      int index = nodesPtr[node->downStreamNode].modelIndex;
+      //#pragma acc atomic update
+ 	kwNodesPtr[index].incomingWaterOverland += newq;
+     }
 
     cNode->incomingWater[KW_LAYER_FASTFLOW] = newq;
     // Add Interflow Excess Water to Reservoir
@@ -467,9 +533,10 @@ void KWRoute::RouteInt(float stepSeconds, GridNode *node, KWGridNode *cNode,
     cNode->states[STATE_KW_PQ] =
         newWater; // Update previous Q for further routing if "steps" > 1
     if (node->downStreamNode != INVALID_DOWNSTREAM_NODE) {
-#pragma acc atomic update
-	kwNodes[nodes->at(node->downStreamNode).modelIndex].incomingWaterChannel += newWater;
-    }
+      int index = nodesPtr[node->downStreamNode].modelIndex;
+      //#pragma acc atomic update
+ 	kwNodesPtr[index].incomingWaterChannel += newWater;
+     }
 
     cNode->incomingWater[KW_LAYER_FASTFLOW] = newWater;
     cNode->incomingWater[KW_LAYER_INTERFLOW] = 0.0;

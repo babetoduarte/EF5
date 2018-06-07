@@ -2,9 +2,10 @@
 #define GRID_NODE_H
 
 #include "GaugeConfigSection.h"
+#include <limits>
 #include <vector>
 
-#define INVALID_DOWNSTREAM_NODE -1ul
+const unsigned long INVALID_DOWNSTREAM_NODE = std::numeric_limits<unsigned long>::max();
 
 struct BasicGridNode {};
 

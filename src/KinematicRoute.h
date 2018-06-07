@@ -62,8 +62,18 @@ private:
 
   std::vector<GridNode> *nodes;
   std::vector<KWGridNode> kwNodes;
+  std::vector<int> ordering;             //Order in which nodes must be processed to ensure causal independence
+  std::vector<int> levels;               //Set of half-open intervals defining parallelisable sets of nodes
   float maxSpeed;
   bool initialized;
+
+  long gridSize;
+  GridNode *nodesPtr;
+  KWGridNode *kwNodesPtr;
+  float *fastFlowPtr;
+  float *slowFlowPtr;
+  float *dischargePtr;
+  int *orderingPtr;
 };
 
 #endif

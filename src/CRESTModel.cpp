@@ -8,6 +8,7 @@
 #include "CRESTModel.h"
 #include "DatedName.h"
 #include <algorithm> 
+#include <assert.h>
 
 static const char *stateStrings[] = {
     "SM",
@@ -27,6 +28,12 @@ bool CRESTModel::InitializeModel(
   if (crestNodes.size() != nodes->size()) {
     crestNodes.resize(nodes->size());
   }
+
+  nodesPtr = nodes->data();
+  gridSize = nodes->size();
+  crestNodesPtr = crestNodes.data();
+  assert(gridSize == crestNodes.size());
+#pragma acc enter data copyin(crestNodesPtr[0:gridSize])
 
   // Fill in modelIndex in the gridNodes
   size_t numNodes = nodes->size();
@@ -110,40 +117,18 @@ bool CRESTModel::WaterBalance(float stepHours, std::vector<float> *precip,
 
   size_t numNodes = nodes->size();
 
-GridNode *nodesPtr = nodes->data();
-long nodesSize = nodes->size();
-#pragma acc enter data copyin(nodesPtr[0:nodesSize])
-
-CRESTGridNode *crestNodesPtr = crestNodes.data();
-long crestNodesSize = crestNodes.size();
-#pragma acc enter data copyin(crestNodesPtr[0:crestNodesSize])
-
-float *precipPtr = precip->data();
-long precipSize = precip->size();  
-#pragma acc enter data copyin(precipPtr[0:precipSize])
-
-float *petPtr = pet->data();
-long petSize = pet->size();
-#pragma acc enter data copyin(petPtr[0:petSize])
-
-float *fastFlowPtr = fastFlow->data();
-long fastFlowSize = fastFlow->size();
-#pragma acc enter data copyin(fastFlowPtr[0:fastFlowSize])
-
-float *slowFlowPtr = slowFlow->data();
-long slowFlowSize = slowFlow->size();
-#pragma acc enter data copyin(slowFlowPtr[0:slowFlowSize])
-
-float *soilMoisturePtr = soilMoisture->data();
-long soilMoistureSize = soilMoisture->size();
-#pragma acc enter data copyin(soilMoisturePtr[0:soilMoistureSize])
+  float *precipPtr = precip->data();
+  float *petPtr = pet->data();
+  float *fastFlowPtr = fastFlow->data();
+  float *slowFlowPtr = slowFlow->data();
+  float *soilMoisturePtr = soilMoisture->data();
 
 #pragma acc parallel loop default(present)
   for (size_t i = 0; i < numNodes; i++) {
     WaterBalanceInt(&nodesPtr[i], &crestNodesPtr[i], stepHours, precipPtr[i], petPtr[i], &fastFlowPtr[i], &slowFlowPtr[i]);
     soilMoisturePtr[i] = crestNodesPtr[i].states[STATE_CREST_SM] * 100.0 / crestNodesPtr[i].params[PARAM_CREST_WM];
   }
-#pragma acc exit data copyout(nodesPtr[0:nodesSize], crestNodesPtr[0:crestNodesSize], fastFlowPtr[0:fastFlowSize], slowFlowPtr[0:slowFlowSize], soilMoisturePtr[0:soilMoistureSize])
+  //#pragma acc exit data copyout(nodesPtr[0:gridSize], crestNodesPtr[0:gridSize], fastFlowPtr[0:gridSize], slowFlowPtr[0:gridSize], soilMoisturePtr[0:gridSize])
 
   // for (size_t i = 0; i < numNodes; i++) {
   //   GridNode *node = &nodes->at(i);

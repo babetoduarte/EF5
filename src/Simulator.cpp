@@ -24,6 +24,8 @@
 #include <cmath>
 #include <string.h>
 #include <zlib.h>
+#include <iostream>
+#include <assert.h>
 
 bool Simulator::Initialize(TaskConfigSection *taskN) {
 
@@ -1317,8 +1319,38 @@ void Simulator::SimulateDistributed(bool trackPeaks) {
   double simStartTime = omp_get_wtime();
 #endif
 
+GridNode *nodesPtr = nodes.data();
+long gridSize = nodes.size();
+#pragma acc enter data copyin(nodesPtr[0:gridSize])
+
+float *precipPtr = currentPrecip->data();
+assert(gridSize == currentPrecip->size());
+#pragma acc enter data copyin(precipPtr[0:gridSize])
+
+float *petPtr = currentPETSimu.data();
+assert(gridSize == currentPETSimu.size());
+#pragma acc enter data copyin(petPtr[0:gridSize])
+
+float *fastFlowPtr = currentFF.data();
+assert(gridSize == currentFF.size());
+#pragma acc enter data copyin(fastFlowPtr[0:gridSize])
+
+float *slowFlowPtr = currentSF.data();
+assert(gridSize == currentSF.size());
+#pragma acc enter data copyin(slowFlowPtr[0:gridSize])
+
+float *soilMoisturePtr = SM.data();
+assert(gridSize == SM.size());
+#pragma acc enter data copyin(soilMoisturePtr[0:gridSize])
+
+float *dischargePtr = currentQ.data();
+assert(gridSize == currentQ.size());
+#pragma acc enter data copyin(dischargePtr[0:gridSize])
+
   // This is the temporal loop for each time step
   // Here we load the input forcings & actually run the model
+  double start = omp_get_wtime();
+  // Start of loop
   for (currentTime.Increment(timeStep); currentTime <= endTime;
        currentTime.Increment(timeStep)) {
 #if _OPENMP
@@ -1573,7 +1605,9 @@ void Simulator::SimulateDistributed(bool trackPeaks) {
     NORMAL_LOGF("%s", "\n");
 #endif
     tsIndex++;
-  }
+  } // End of loop
+  double end = omp_get_wtime();
+  std::cout << "Time: " << (end - start) << std::endl;
 
   if (trackPeaks) {
     SaveLP3Params();
