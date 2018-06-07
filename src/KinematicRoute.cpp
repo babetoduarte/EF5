@@ -1,14 +1,23 @@
 #include "KinematicRoute.h"
 #include "AscGrid.h"
 #include "DatedName.h"
-#include <cmath>
+//#include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <iostream>
 #include <map>
+#include <limits>
+
+const float STD_AN_INFINITY_POSITIVE = std::numeric_limits<float>::infinity();
+
+extern "C" {
+  int myisfinite(float x) {
+    return(!(x == STD_AN_INFINITY_POSITIVE));
+  }
+}
 
 // fac -> index map
-std::map<long,std::vector<int> > FAcMapping;
+static std::map<long,std::vector<int> > FAcMapping;
 
 static const char *stateStrings[] = {
     "pCQ",
@@ -73,6 +82,8 @@ bool KWRoute::InitializeModel(
   if (kwNodes.size() != nodes->size()) {
     kwNodes.resize(nodes->size());
   }
+
+  #pragma acc enter data create(this[0:1])
 
   // Fill in modelIndex in the gridNodes
   size_t numNodes = nodes->size();
@@ -181,16 +192,45 @@ bool KWRoute::Route(float stepHours, std::vector<float> *fastFlow,
   //   RouteInt(stepHours * 3600.0f, &(nodes->at(i)), cNode, fastFlow->at(i),
   //            slowFlow->at(i));
   // }
+    
+GridNode *nodesPtr = nodes->data();
+long nodesSize = nodes->size();
+#pragma acc enter data copyin(nodesPtr[0:nodesSize])
 
-  // PARALLELIZED BY LEVEL EXECUTION OF FAc ROUTING 
-  for (std::map<long, std::vector<int> >::const_iterator it = FAcMapping.begin(); it != FAcMapping.end(); ++it) {
-#pragma acc parallel loop
-    for(long j = 0; j < it->second.size(); j++) {
-      int i = it->second[j];
-      KWGridNode *cNode = &(kwNodes[i]);
-      RouteInt(stepHours * 3600.0f, &(nodes->at(i)), cNode, fastFlow->at(i), slowFlow->at(i));
+KWGridNode *kwNodesPtr = kwNodes.data();
+long kwNodesSize = kwNodes.size();
+#pragma acc enter data copyin(kwNodesPtr[0:kwNodesSize])
+
+float *fastFlowPtr = fastFlow->data();
+long fastFlowSize = fastFlow->size();
+#pragma acc enter data copyin(fastFlowPtr[0:fastFlowSize])
+
+float *slowFlowPtr = slowFlow->data();
+long slowFlowSize = slowFlow->size();
+#pragma acc enter data copyin(slowFlowPtr[0:slowFlowSize])
+
+// PARALLELIZED BY LEVEL EXECUTION OF FAc ROUTING 
+ // for (std::map<long, std::vector<int> >::const_iterator it = FAcMapping.begin(); it != FAcMapping.end(); ++it) {
+ //   int *mappingPtr = (int *) it->second.data();
+ //   long mappingSize = it->second.size();
+ //   //#pragma acc enter data copyin(mappingPtr[0:mappingSize])
+ //   //#pragma acc parallel loop default(present)
+ //   for(long j = 0; j < mappingSize; j++) {
+ //     int k = mappingPtr[j];
+ //     RouteInt(stepHours * 3600.0f, &nodesPtr[k], &kwNodesPtr[k], fastFlowPtr[k], slowFlowPtr[k]);
+ //   }
+ // }
+ for (std::map<long, std::vector<int> >::const_iterator it = FAcMapping.begin(); it != FAcMapping.end(); ++it) {
+   int *mappingPtr = (int *) it->second.data();
+   long mappingSize = it->second.size();
+   // #pragma acc enter data copyin(mappingPtr[0:mappingSize])
+   // #pragma acc parallel loop default(present)
+    for(long j = 0; j < mappingSize; j++) {
+      int k = mappingPtr[j];
+      RouteInt(stepHours * 3600.0f, &nodesPtr[k], &kwNodesPtr[k], fastFlowPtr[k], slowFlowPtr[k]);
     }
   }
+ //#pragma acc exit data copyout(nodesPtr[0:nodesSize], kwNodesPtr[0:kwNodesSize], fastFlowPtr[0:fastFlowSize], slowFlowPtr[0:slowFlowSize])
 
   for (size_t i = 0; i < numNodes; i++)
   {
@@ -225,6 +265,7 @@ bool KWRoute::Route(float stepHours, std::vector<float> *fastFlow,
 void KWRoute::RouteInt(float stepSeconds, GridNode *node, KWGridNode *cNode,
                        float fastFlow, float slowFlow) {
   if (!cNode->channelGridCell) {
+    
     float beta = 0.6;
     float alpha = cNode->params[PARAM_KINEMATIC_ALPHA0];
 
@@ -237,7 +278,7 @@ void KWRoute::RouteInt(float stepSeconds, GridNode *node, KWGridNode *cNode,
       backDiffq =
           pow((cNode->incomingWaterOverland + cNode->states[STATE_KW_PQ]) / 2.0,
               beta - 1.0);
-      if (!std::isfinite(backDiffq)) {
+      if (!myisfinite(backDiffq)) {
         backDiffq = 0.0;
       }
     }
@@ -249,10 +290,11 @@ void KWRoute::RouteInt(float stepSeconds, GridNode *node, KWGridNode *cNode,
     float estq = (A + B + C) / (D + E); // cms/m
     float rhs = A + alpha * pow(cNode->states[STATE_KW_PQ], beta) +
                 stepSeconds * newInWater;
+    
     for (int itr = 0; itr < 10; itr++) {
       float resError =
           (stepSeconds / node->horLen) * estq + alpha * pow(estq, beta) - rhs;
-      if (!std::isfinite(resError)) {
+      if (!myisfinite(resError)) {
         resError = 0.0;
       }
       if (fabsf(resError) < 0.01) {
@@ -260,7 +302,7 @@ void KWRoute::RouteInt(float stepSeconds, GridNode *node, KWGridNode *cNode,
       }
       float resErrorD1 =
           (stepSeconds / node->horLen) + alpha * beta * pow(estq, beta - 1.0);
-      if (!std::isfinite(resErrorD1)) {
+      if (!myisfinite(resErrorD1)) {
         resErrorD1 = 1.0;
       }
       estq = estq - resError / resErrorD1;
@@ -277,7 +319,7 @@ void KWRoute::RouteInt(float stepSeconds, GridNode *node, KWGridNode *cNode,
     cNode->states[STATE_KW_PQ] = newq;
     if (node->downStreamNode != INVALID_DOWNSTREAM_NODE) {
 #pragma acc atomic update
-	kwNodes[nodes->at(node->downStreamNode).modelIndex].incomingWaterOverland += newq;
+ 	kwNodes[nodes->at(node->downStreamNode).modelIndex].incomingWaterOverland += newq;
     }
 
     cNode->incomingWater[KW_LAYER_FASTFLOW] = newq;
@@ -296,13 +338,13 @@ void KWRoute::RouteInt(float stepSeconds, GridNode *node, KWGridNode *cNode,
           interflowLeak * cNode->routeAmount[0][KW_LAYER_INTERFLOW] *
           node->area / cNode->routeNode[0][KW_LAYER_INTERFLOW]->area;
       double leakAmount = interflowLeak0;
-      /*if (cNode->routeNode[0][KW_LAYER_INTERFLOW]->channelGridCell) {
-      printf(" 0 got %f ",
-      cNode->routeCNode[0][KW_LAYER_INTERFLOW]->incomingWater[KW_LAYER_INTERFLOW]);
-      }*/
+      // if (cNode->routeNode[0][KW_LAYER_INTERFLOW]->channelGridCell) {
+      // printf(" 0 got %f ",
+      // cNode->routeCNode[0][KW_LAYER_INTERFLOW]->incomingWater[KW_LAYER_INTERFLOW]);
+      // }
       cNode->routeCNode[0][KW_LAYER_INTERFLOW]
           ->incomingWater[KW_LAYER_INTERFLOW] += leakAmount;
-      //*res += leakAmount; // Make this an atomic add for parallelization
+      // *res += leakAmount; // Make this an atomic add for parallelization
     }
 
     if (cNode->routeCNode[1][KW_LAYER_INTERFLOW]) {
@@ -332,7 +374,7 @@ void KWRoute::RouteInt(float stepSeconds, GridNode *node, KWGridNode *cNode,
       backDiffq =
           pow((cNode->incomingWaterOverland + cNode->states[STATE_KW_PO]) / 2.0,
               beta - 1.0);
-      if (!std::isfinite(backDiffq)) {
+      if (!myisfinite(backDiffq)) {
         backDiffq = 0.0;
       }
     }
@@ -347,7 +389,7 @@ void KWRoute::RouteInt(float stepSeconds, GridNode *node, KWGridNode *cNode,
     for (int itr = 0; itr < 10; itr++) {
       float resError =
           (stepSeconds / node->horLen) * estq + alpha * pow(estq, beta) - rhs;
-      if (!std::isfinite(resError)) {
+      if (!myisfinite(resError)) {
         resError = 0.0;
       }
       if (fabsf(resError) < 0.01) {
@@ -355,7 +397,7 @@ void KWRoute::RouteInt(float stepSeconds, GridNode *node, KWGridNode *cNode,
       }
       float resErrorD1 =
           (stepSeconds / node->horLen) + alpha * beta * pow(estq, beta - 1.0);
-      if (!std::isfinite(resErrorD1)) {
+      if (!myisfinite(resErrorD1)) {
         resErrorD1 = 1.0;
       }
       estq = estq - resError / resErrorD1;
@@ -381,7 +423,7 @@ void KWRoute::RouteInt(float stepSeconds, GridNode *node, KWGridNode *cNode,
       backDiffQ =
           pow((cNode->incomingWaterChannel + cNode->states[STATE_KW_PQ]) / 2.0,
               beta - 1.0);
-      if (!std::isfinite(backDiffQ)) {
+      if (!myisfinite(backDiffQ)) {
         backDiffQ = 0.0;
       }
     }
@@ -397,7 +439,7 @@ void KWRoute::RouteInt(float stepSeconds, GridNode *node, KWGridNode *cNode,
     for (int itr = 0; itr < 10; itr++) {
       float resError =
           (stepSeconds / node->horLen) * estQ + alpha * pow(estQ, beta) - rhs;
-      if (!std::isfinite(resError)) {
+      if (!myisfinite(resError)) {
         resError = 0.0;
       }
       if (fabsf(resError) < 0.01) {
@@ -405,7 +447,7 @@ void KWRoute::RouteInt(float stepSeconds, GridNode *node, KWGridNode *cNode,
       }
       float resErrorD1 =
           (stepSeconds / node->horLen) + alpha * beta * pow(estQ, beta - 1.0);
-      if (!std::isfinite(resErrorD1)) {
+      if (!myisfinite(resErrorD1)) {
         resErrorD1 = 1.0;
       }
       estQ = estQ - resError / resErrorD1;
@@ -417,11 +459,11 @@ void KWRoute::RouteInt(float stepSeconds, GridNode *node, KWGridNode *cNode,
       estQ = 0.0;
     }
     float newWater = estQ;
-    /*if (newWater != newWater) {
-    printf("New water is %f (%f, %f) %f %f [%f %f %f %f %f] %f %f\n", newWater,
-    cNode->incomingWaterChannel, cNode->states[STATE_KW_PQ], newq,
-    cNode->incomingWaterOverland, A, B, C, D, E, alpha, 0.0);
-    }*/
+    // if (newWater != newWater) {
+    // printf("New water is %f (%f, %f) %f %f [%f %f %f %f %f] %f %f\n", newWater,
+    // cNode->incomingWaterChannel, cNode->states[STATE_KW_PQ], newq,
+    // cNode->incomingWaterOverland, A, B, C, D, E, alpha, 0.0);
+    // }
     cNode->states[STATE_KW_PQ] =
         newWater; // Update previous Q for further routing if "steps" > 1
     if (node->downStreamNode != INVALID_DOWNSTREAM_NODE) {

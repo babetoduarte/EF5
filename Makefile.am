@@ -15,7 +15,7 @@ AM_CXXFLAGS= ${WALL} -mwindows ${OPENMP_CFLAGS}
 __top_builddir__bin_ef5_SOURCES = $(unit_FILES) $(type_FILES) $(config_FILES) $(input_FILES) $(model_FILES) src/ExecutionController.cpp src/EF5Windows.cpp src/ef5.rc
 __top_builddir__bin_ef5_LDADD=-ltiff -lgeotiff -lz
 else
-AM_CXXFLAGS= ${WALL} -Werror ${OPENMP_CFLAGS}
+AM_CXXFLAGS= ${WALL} ${OPENMP_CFLAGS}
 __top_builddir__bin_ef5_SOURCES = $(unit_FILES) $(type_FILES) $(config_FILES) $(input_FILES) $(model_FILES) src/ExecutionController.cpp src/EF5.cpp src/DEMProcessor.cpp
 __top_builddir__bin_ef5_LDADD=-ltiff -lgeotiff -lz ${OMP}
 endif
