@@ -1,5 +1,11 @@
 #!/bin/bash
 
+# 1. create the EF5/build folder
+# 2. Run this script from within the build folder
+#	cd build
+#	../build-ef5_gcp.sh
+
+
 module load pgi/18.4 openmpi/2.1.2/pgi/18.4
 spack load libgeotiff
 

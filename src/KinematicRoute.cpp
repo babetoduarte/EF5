@@ -384,7 +384,7 @@ void KWRoute::RouteInt(float stepSeconds, GridNode *node, KWGridNode *cNode,
     cNode->states[STATE_KW_PQ] = newq;
     if (node->downStreamNode != INVALID_DOWNSTREAM_NODE) {
       int index = nodesPtr[node->downStreamNode].modelIndex;
-      //#pragma acc atomic update
+#pragma acc atomic update
  	kwNodesPtr[index].incomingWaterOverland += newq;
      }
 
@@ -534,7 +534,7 @@ void KWRoute::RouteInt(float stepSeconds, GridNode *node, KWGridNode *cNode,
         newWater; // Update previous Q for further routing if "steps" > 1
     if (node->downStreamNode != INVALID_DOWNSTREAM_NODE) {
       int index = nodesPtr[node->downStreamNode].modelIndex;
-      //#pragma acc atomic update
+#pragma acc atomic update
  	kwNodesPtr[index].incomingWaterChannel += newWater;
      }
 
