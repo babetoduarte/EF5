@@ -537,6 +537,7 @@ void KWRoute::RouteInt(float stepSeconds, GridNode *node, KWGridNode *cNode,
 #pragma acc atomic update
       kwNodes[nodes->at(node->downStreamNode).modelIndex].incomingWaterChannel += newWater;
     }
+
     cNode->incomingWater[KW_LAYER_FASTFLOW] = newWater;
     cNode->incomingWater[KW_LAYER_INTERFLOW] = 0.0;
   }
