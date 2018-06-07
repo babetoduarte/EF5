@@ -24,7 +24,7 @@ extern "C" {
 // fac -> index map
 static std::map<long,std::vector<int> > FAcMapping;
 
-std::pair<std::vector<int>, std::vector<int>> GetDependencies(const std::vector<GridNode> &nodes){
+std::pair<std::vector<int>, std::vector<int> > GetDependencies(const std::vector<GridNode> &nodes){
   std::vector<int> deps(nodes.size(),0); //How many upstream dependencies each node has
   std::vector<int> ordering;             //Order in which nodes must be processed to ensure causal independence
   std::vector<int> levels;               //Set of half-open intervals defining parallelisable sets of nodes
