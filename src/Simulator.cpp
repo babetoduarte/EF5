@@ -1606,8 +1606,6 @@ assert(gridSize == currentQ.size());
 #endif
     tsIndex++;
   } // End of loop
-  double end = omp_get_wtime();
-  std::cout << "Time: " << (end - start) << std::endl;
 
   if (trackPeaks) {
     SaveLP3Params();

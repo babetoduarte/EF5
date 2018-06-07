@@ -11,7 +11,7 @@
 #include <utility>
 #include <stdexcept>
 #include <assert.h>
-#include "omp.h"
+// #include <math.h>
 
 const float STD_AN_INFINITY_POSITIVE = std::numeric_limits<float>::infinity();
 
@@ -20,6 +20,7 @@ extern "C" {
     return(!(x == STD_AN_INFINITY_POSITIVE));
   }
 }
+// #define myisfinite isfinite
 
 // fac -> index map
 static std::map<long,std::vector<int> > FAcMapping;
@@ -286,7 +287,8 @@ bool KWRoute::Route(float stepHours, std::vector<float> *fastFlow,
   for(unsigned int lvl = 0; lvl < levels.size() - 1; lvl++) {
     const auto lvlstart = levels[lvl];
     const auto lvlend = levels[lvl + 1];
-#pragma acc parallel loop independent async(1) default(present)
+    // #pragma acc parallel loop independent async(1) default(present)
+#pragma acc parallel loop independent default(present)
     for(unsigned int o = lvlstart; o < lvlend; o++) {
       const auto c = orderingPtr[o];
       RouteInt(stepHours * 3600.0f, &nodesPtr[c], &kwNodesPtr[c], fastFlowPtr[c], slowFlowPtr[c]);
@@ -294,7 +296,7 @@ bool KWRoute::Route(float stepHours, std::vector<float> *fastFlow,
       // RouteInt(stepHours * 3600.0f, &nodes->at(c), &kwNodes.at(c), fastFlow->at(c), slowFlow->at(c));
     }
   }
-#pragma acc wait(1)
+  // #pragma acc wait(1)
 
 #pragma acc parallel loop independent default(present)
   for (size_t i = 0; i < numNodes; i++)
@@ -383,10 +385,9 @@ void KWRoute::RouteInt(float stepSeconds, GridNode *node, KWGridNode *cNode,
 
     cNode->states[STATE_KW_PQ] = newq;
     if (node->downStreamNode != INVALID_DOWNSTREAM_NODE) {
-      int index = nodesPtr[node->downStreamNode].modelIndex;
-      //#pragma acc atomic update
- 	kwNodesPtr[index].incomingWaterOverland += newq;
-     }
+#pragma acc atomic update
+      kwNodes[nodes->at(node->downStreamNode).modelIndex].incomingWaterOverland += newq;
+    }
 
     cNode->incomingWater[KW_LAYER_FASTFLOW] = newq;
     // Add Interflow Excess Water to Reservoir
@@ -531,13 +532,11 @@ void KWRoute::RouteInt(float stepSeconds, GridNode *node, KWGridNode *cNode,
     // cNode->incomingWaterOverland, A, B, C, D, E, alpha, 0.0);
     // }
     cNode->states[STATE_KW_PQ] =
-        newWater; // Update previous Q for further routing if "steps" > 1
+      newWater; // Update previous Q for further routing if "steps" > 1
     if (node->downStreamNode != INVALID_DOWNSTREAM_NODE) {
-      int index = nodesPtr[node->downStreamNode].modelIndex;
-      //#pragma acc atomic update
- 	kwNodesPtr[index].incomingWaterChannel += newWater;
-     }
-
+#pragma acc atomic update
+      kwNodes[nodes->at(node->downStreamNode).modelIndex].incomingWaterChannel += newWater;
+    }
     cNode->incomingWater[KW_LAYER_FASTFLOW] = newWater;
     cNode->incomingWater[KW_LAYER_INTERFLOW] = 0.0;
   }
