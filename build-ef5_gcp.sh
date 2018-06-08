@@ -15,7 +15,7 @@ cd .. && autoreconf --force --Install
 cd build
 make clean
 #Compile for GPU
-CC=pgcc CXX=pgc++ LDFLAGS="-L${GEOTIFF}/lib -lgeotiff" CPPFLAGS="-I${GEOTIFF}/include" CXXFLAGS+=" -std=c++11 -Minfo=accel -ta=tesla:managed:cc70" ../configure
+#CC=pgcc CXX=pgc++ LDFLAGS="-L${GEOTIFF}/lib -lgeotiff" CPPFLAGS="-I${GEOTIFF}/include" CXXFLAGS+=" -std=c++11 -Minfo=accel -ta=tesla:managed:cc70" ../configure
 #Compile for CPU Multicore
-#CC=pgcc CXX=pgc++ LDFLAGS="-L${GEOTIFF}/lib -lgeotiff" CPPFLAGS="-I${GEOTIFF}/include" CXXFLAGS+=" -std=c++11 -Minfo=accel -ta=multicore" ../configure
+CC=pgcc CXX=pgc++ LDFLAGS="-L${GEOTIFF}/lib -lgeotiff" CPPFLAGS="-I${GEOTIFF}/include" CXXFLAGS+=" -std=c++11 -Minfo=accel -ta=multicore" ../configure
 make -j
