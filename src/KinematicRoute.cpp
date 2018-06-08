@@ -384,10 +384,10 @@ void KWRoute::RouteInt(float stepSeconds, GridNode *node, KWGridNode *cNode,
     float newq = estq;
 
     cNode->states[STATE_KW_PQ] = newq;
-    if (node->downStreamNode != INVALID_DOWNSTREAM_NODE) {
-#pragma acc atomic update
-      kwNodes[nodes->at(node->downStreamNode).modelIndex].incomingWaterOverland += newq;
-    }
+//    if (node->downStreamNode != INVALID_DOWNSTREAM_NODE) {
+//#pragma acc atomic update
+//      kwNodes[nodes->at(node->downStreamNode).modelIndex].incomingWaterOverland += newq;
+//    }
 
     cNode->incomingWater[KW_LAYER_FASTFLOW] = newq;
     // Add Interflow Excess Water to Reservoir
@@ -533,10 +533,10 @@ void KWRoute::RouteInt(float stepSeconds, GridNode *node, KWGridNode *cNode,
     // }
     cNode->states[STATE_KW_PQ] =
       newWater; // Update previous Q for further routing if "steps" > 1
-    if (node->downStreamNode != INVALID_DOWNSTREAM_NODE) {
-#pragma acc atomic update
-      kwNodes[nodes->at(node->downStreamNode).modelIndex].incomingWaterChannel += newWater;
-    }
+//    if (node->downStreamNode != INVALID_DOWNSTREAM_NODE) {
+//#pragma acc atomic update
+//      kwNodes[nodes->at(node->downStreamNode).modelIndex].incomingWaterChannel += newWater;
+//    }
 
     cNode->incomingWater[KW_LAYER_FASTFLOW] = newWater;
     cNode->incomingWater[KW_LAYER_INTERFLOW] = 0.0;
