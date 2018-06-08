@@ -194,6 +194,10 @@ bool KWRoute::InitializeModel(
   assert(gridSize == ordering.size());
 #pragma acc enter data copyin(orderingPtr[0:gridSize])
 
+  levelsPtr = levels.data();
+  levelsSize = levels.size();
+#pragma acc enter data copyin(levelsPtr[0:levelsSize])
+
   return true;
 }
 
@@ -283,14 +287,14 @@ bool KWRoute::Route(float stepHours, std::vector<float> *fastFlow,
   size_t numNodes = nodes->size();
 
   dischargePtr = discharge->data();
-#pragma acc parallel default(present) //JOE
+#pragma acc parallel present(nodesPtr[0:gridSize], kwNodesPtr[0:gridSize], fastFlowPtr[0:gridSize], slowFlowPtr[0:gridSize], dischargePtr[0:gridSize], orderingPtr[0:gridSize], levelsPtr[0:levelsSize]) //JOE
 #pragma acc loop seq //JOE
-  for(unsigned int lvl = 0; lvl < levels.size() - 1; lvl++) {
-    const auto lvlstart = levels[lvl];
-    const auto lvlend = levels[lvl + 1];
+  for(unsigned int lvl = 0; lvl < levelsSize - 1; lvl++) {
+    const auto lvlstart = levelsPtr[lvl];
+    const auto lvlend = levelsPtr[lvl + 1];
     // #pragma acc parallel loop independent async(1) default(present)
 //#pragma acc parallel loop independent default(present) //Simone
-#pragma acc loop //independent //JOE
+#pragma acc loop independent //JOE
     for(unsigned int o = lvlstart; o < lvlend; o++) {
       const auto c = orderingPtr[o];
       RouteInt(stepHours * 3600.0f, &nodesPtr[c], &kwNodesPtr[c], fastFlowPtr[c], slowFlowPtr[c]);
@@ -387,7 +391,7 @@ void KWRoute::RouteInt(float stepSeconds, GridNode *node, KWGridNode *cNode,
 
     cNode->states[STATE_KW_PQ] = newq;
     if (node->downStreamNode != INVALID_DOWNSTREAM_NODE) {
-#pragma acc atomic update
+      //#pragma acc atomic update
       kwNodes[nodes->at(node->downStreamNode).modelIndex].incomingWaterOverland += newq;
     }
 
@@ -536,7 +540,7 @@ void KWRoute::RouteInt(float stepSeconds, GridNode *node, KWGridNode *cNode,
     cNode->states[STATE_KW_PQ] =
       newWater; // Update previous Q for further routing if "steps" > 1
     if (node->downStreamNode != INVALID_DOWNSTREAM_NODE) {
-#pragma acc atomic update
+      //#pragma acc atomic update
       kwNodes[nodes->at(node->downStreamNode).modelIndex].incomingWaterChannel += newWater;
     }
 

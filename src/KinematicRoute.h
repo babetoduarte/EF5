@@ -74,6 +74,8 @@ private:
   float *slowFlowPtr;
   float *dischargePtr;
   int *orderingPtr;
+  int *levelsPtr;
+  long levelsSize;
 };
 
 #endif
