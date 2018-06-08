@@ -21,3 +21,4 @@ depcomp
 stamp-h1
 *.cache/*
 src/.*
+.vscode/*
