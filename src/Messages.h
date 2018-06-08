@@ -10,7 +10,8 @@
 #define ANSI_COLOR_RESET "\x1b[0m"
 
 #ifndef _WIN32
-#define LOGFR(...) printf(__VA_ARGS__)
+#define LOGFR(...)
+//#define LOGFR(...) printf(__VA_ARGS__)
 #define NORMAL_LOGF(x, ...) printf(x, __VA_ARGS__)
 #define DEBUG_LOGF(x, ...)                                                     \
   LOGFR(ANSI_COLOR_YELLOW "DEBUG:" __FILE__ "(%i): " ANSI_COLOR_RESET x "\n",  \

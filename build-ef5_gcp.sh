@@ -14,7 +14,7 @@ GEOTIFF=$(spack find --paths libgeotiff | tail -n 1 | awk '{print $2}')
 cd .. && autoreconf --force --Install
 cd build
 #Compile for GPU
-CC=pgcc CXX=pgc++ LDFLAGS="-L${GEOTIFF}/lib -lgeotiff" CPPFLAGS="-I${GEOTIFF}/include" CXXFLAGS+=" -std=c++11 -Minfo=accel -ta=tesla:managed" ../configure
+CC=pgcc CXX=pgc++ LDFLAGS="-L${GEOTIFF}/lib -lgeotiff" CPPFLAGS="-I${GEOTIFF}/include" CXXFLAGS+=" -O3 -std=c++11 -Minfo=accel -Mlarge_arrays -ta=tesla:managed" ../configure
 #Compile for CPU Multicore
 #CC=pgcc CXX=pgc++ LDFLAGS="-L${GEOTIFF}/lib -lgeotiff" CPPFLAGS="-I${GEOTIFF}/include" CXXFLAGS+=" -std=c++11 -Minfo=accel -ta=multicore" ../configure
 make -j

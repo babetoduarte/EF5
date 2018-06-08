@@ -287,15 +287,16 @@ bool KWRoute::Route(float stepHours, std::vector<float> *fastFlow,
   size_t numNodes = nodes->size();
 
   dischargePtr = discharge->data();
-#pragma acc parallel present(nodesPtr[0:gridSize], kwNodesPtr[0:gridSize], fastFlowPtr[0:gridSize], slowFlowPtr[0:gridSize], dischargePtr[0:gridSize], orderingPtr[0:gridSize], levelsPtr[0:levelsSize]) //JOE
+  long lvlSize = levelsSize;
+#pragma acc parallel vector_length(32) default(present) //present(nodesPtr[0:gridSize], kwNodesPtr[0:gridSize], fastFlowPtr[0:gridSize], slowFlowPtr[0:gridSize], dischargePtr[0:gridSize], orderingPtr[0:gridSize], levelsPtr[0:levelsSize]) //JOE
 #pragma acc loop seq //JOE
-  for(unsigned int lvl = 0; lvl < levelsSize - 1; lvl++) {
+  for(unsigned long lvl = 0; lvl < lvlSize - 1; lvl++) {
     const auto lvlstart = levelsPtr[lvl];
     const auto lvlend = levelsPtr[lvl + 1];
     // #pragma acc parallel loop independent async(1) default(present)
-//#pragma acc parallel loop independent default(present) //Simone
+    //#pragma acc parallel loop independent default(present) //Simone
 #pragma acc loop independent //JOE
-    for(unsigned int o = lvlstart; o < lvlend; o++) {
+    for(unsigned long o = lvlstart; o < lvlend; o++) {
       const auto c = orderingPtr[o];
       RouteInt(stepHours * 3600.0f, &nodesPtr[c], &kwNodesPtr[c], fastFlowPtr[c], slowFlowPtr[c]);
       // const auto c = ordering.at(o);
@@ -338,7 +339,7 @@ bool KWRoute::Route(float stepHours, std::vector<float> *fastFlow,
 void KWRoute::RouteInt(float stepSeconds, GridNode *node, KWGridNode *cNode,
                        float fastFlow, float slowFlow) {
   if (!cNode->channelGridCell) {
-    
+
     float beta = 0.6;
     float alpha = cNode->params[PARAM_KINEMATIC_ALPHA0];
 
@@ -363,7 +364,7 @@ void KWRoute::RouteInt(float stepSeconds, GridNode *node, KWGridNode *cNode,
     float estq = (A + B + C) / (D + E); // cms/m
     float rhs = A + alpha * pow(cNode->states[STATE_KW_PQ], beta) +
                 stepSeconds * newInWater;
-    
+        
     for (int itr = 0; itr < 10; itr++) {
       float resError =
           (stepSeconds / node->horLen) * estq + alpha * pow(estq, beta) - rhs;
@@ -390,17 +391,20 @@ void KWRoute::RouteInt(float stepSeconds, GridNode *node, KWGridNode *cNode,
     float newq = estq;
 
     cNode->states[STATE_KW_PQ] = newq;
-    if (node->downStreamNode != INVALID_DOWNSTREAM_NODE) {
-      //#pragma acc atomic update
-      kwNodes[nodes->at(node->downStreamNode).modelIndex].incomingWaterOverland += newq;
-    }
+    // Simone: atomic bug
+    // if (node->downStreamNode != INVALID_DOWNSTREAM_NODE) {
+    //   #pragma acc atomic update
+    //   kwNodes[nodes->at(node->downStreamNode).modelIndex].incomingWaterOverland += newq;
+    // }
+    // Simone: atomic bug
 
     cNode->incomingWater[KW_LAYER_FASTFLOW] = newq;
     // Add Interflow Excess Water to Reservoir
     cNode->states[STATE_KW_IR] += slowFlow;
-    double interflowLeak =
+    double interflowLeak = 
         cNode->states[STATE_KW_IR] * cNode->params[PARAM_KINEMATIC_LEAKI];
     // printf(" %f ", interflowLeak);
+
     cNode->states[STATE_KW_IR] -= interflowLeak;
     if (cNode->states[STATE_KW_IR] < 0) {
       cNode->states[STATE_KW_IR] = 0;
@@ -429,8 +433,9 @@ void KWRoute::RouteInt(float stepSeconds, GridNode *node, KWGridNode *cNode,
       double *res = &(cNode->routeCNode[1][KW_LAYER_INTERFLOW]
                           ->incomingWater[KW_LAYER_INTERFLOW]);
       *res += leakAmount; // Make this an atomic add for parallelization
-    }
+      }
   } else {
+      
     // First do overland routing
 
     float beta = 0.6;
@@ -484,7 +489,6 @@ void KWRoute::RouteInt(float stepSeconds, GridNode *node, KWGridNode *cNode,
     float newq = estq;
 
     cNode->states[STATE_KW_PO] = newq;
-
     // Here we compute channel routing
     beta = cNode->params[PARAM_KINEMATIC_BETA];
     alpha = cNode->params[PARAM_KINEMATIC_ALPHA];
@@ -537,12 +541,15 @@ void KWRoute::RouteInt(float stepSeconds, GridNode *node, KWGridNode *cNode,
     // cNode->incomingWaterChannel, cNode->states[STATE_KW_PQ], newq,
     // cNode->incomingWaterOverland, A, B, C, D, E, alpha, 0.0);
     // }
+
     cNode->states[STATE_KW_PQ] =
       newWater; // Update previous Q for further routing if "steps" > 1
-    if (node->downStreamNode != INVALID_DOWNSTREAM_NODE) {
-      //#pragma acc atomic update
-      kwNodes[nodes->at(node->downStreamNode).modelIndex].incomingWaterChannel += newWater;
-    }
+    // Simone: atomic bug
+    // if (node->downStreamNode != INVALID_DOWNSTREAM_NODE) {
+    //   #pragma acc atomic update
+    //   kwNodes[nodes->at(node->downStreamNode).modelIndex].incomingWaterChannel += newWater;
+    // }
+    // Simone: atomic bug
 
     cNode->incomingWater[KW_LAYER_FASTFLOW] = newWater;
     cNode->incomingWater[KW_LAYER_INTERFLOW] = 0.0;

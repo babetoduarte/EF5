@@ -1349,7 +1349,6 @@ assert(gridSize == currentQ.size());
 
   // This is the temporal loop for each time step
   // Here we load the input forcings & actually run the model
-  double start = omp_get_wtime();
   // Start of loop
   for (currentTime.Increment(timeStep); currentTime <= endTime;
        currentTime.Increment(timeStep)) {
@@ -1580,8 +1579,6 @@ assert(gridSize == currentQ.size());
 
 #if _OPENMP
 #ifndef _WIN32
-    double endTime = omp_get_wtime();
-    double timeDiff = endTime - beginTime;
     NORMAL_LOGF(" %f sec", endTime - beginTime);
     timeTotal += timeDiff;
     timeCount++;
@@ -1767,14 +1764,14 @@ void Simulator::SimulateLumped() {
       sprintf(buffer, "%s/%s", precipSec->GetLoc(), precipFile->GetName());
       if (!precipReader.Read(buffer, precipSec->GetType(), &nodes,
                              &currentPrecipSimu, precipConvert)) {
-        printf(" Missing precip file(%s)... Assuming zeros.", buffer);
+        INFO_LOGF(" Missing precip file(%s)... Assuming zeros.", buffer);
       }
 
       sprintf(buffer, "%s/%s", petSec->GetLoc(), petFile->GetName());
       if (!petReader.Read(buffer, petSec->GetType(), &nodes, &currentPETSimu,
                           petConvert, petSec->IsTemperature(),
                           (float)currentTime.GetTM()->tm_yday)) {
-        printf(" Missing PET file(%s)... Assuming zeros.", buffer);
+        INFO_LOGF(" Missing PET file(%s)... Assuming zeros.", buffer);
       }
     }
 

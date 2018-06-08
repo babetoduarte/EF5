@@ -9,6 +9,7 @@
 #include "DatedName.h"
 #include <algorithm> 
 #include <assert.h>
+#include "Messages.h"
 
 static const char *stateStrings[] = {
     "SM",
@@ -350,11 +351,11 @@ void CRESTModel::InitializeParameters(
     }
 
     if (cNode->states[STATE_CREST_SM] < 0.0) {
-      printf("Node Soil Moisture(%f) is less than 0, setting to 0.\n",
+      INFO_LOGF("Node Soil Moisture(%f) is less than 0, setting to 0.\n",
              cNode->states[STATE_CREST_SM]);
       cNode->states[STATE_CREST_SM] = 0.0;
     } else if (cNode->states[STATE_CREST_SM] > cNode->params[PARAM_CREST_WM]) {
-      printf("Node Soil Moisture(%f) is greater than WM, setting to %f.\n",
+      INFO_LOGF("Node Soil Moisture(%f) is greater than WM, setting to %f.\n",
              cNode->states[STATE_CREST_SM], cNode->params[PARAM_CREST_WM]);
     }
 

@@ -1,4 +1,5 @@
 #include "GaugeMap.h"
+#include "Messages.h"
 #include <cstdio>
 
 void GaugeMap::Initialize(std::vector<GaugeConfigSection *> *newGauges) {
@@ -27,7 +28,7 @@ void GaugeMap::AddUpstreamGauge(GaugeConfigSection *downStream,
   size_t countGauges = gauges.size();
   for (size_t i = 0; i < countGauges; i++) {
     if (gauges[i] == downStream) {
-      printf("%s is upstream(direct) of %s\n", upStream->GetName(),
+      INFO_LOGF("%s is upstream(direct) of %s\n", upStream->GetName(),
              downStream->GetName());
       gaugeTree[i].push_back(upStream);
     }
@@ -37,7 +38,7 @@ void GaugeMap::AddUpstreamGauge(GaugeConfigSection *downStream,
     std::vector<GaugeConfigSection *> *intGauges = &(gaugeTree[i]);
     for (size_t j = 0; j < intGauges->size(); j++) {
       if (intGauges->at(j) == downStream) {
-        printf("%s is upstream(indirect) of %s\n", upStream->GetName(),
+        INFO_LOGF("%s is upstream(indirect) of %s\n", upStream->GetName(),
                gauges[j]->GetName());
         intGauges->push_back(upStream);
       }
