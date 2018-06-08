@@ -284,13 +284,13 @@ bool KWRoute::Route(float stepHours, std::vector<float> *fastFlow,
 
   dischargePtr = discharge->data();
 #pragma acc parallel default(present) //JOE
-#pragma acc serial //JOE
+#pragma acc loop seq //JOE
   for(unsigned int lvl = 0; lvl < levels.size() - 1; lvl++) {
     const auto lvlstart = levels[lvl];
     const auto lvlend = levels[lvl + 1];
     // #pragma acc parallel loop independent async(1) default(present)
 //#pragma acc parallel loop independent default(present) //Simone
-#pragma acc loop independent //JOE
+#pragma acc loop //independent //JOE
     for(unsigned int o = lvlstart; o < lvlend; o++) {
       const auto c = orderingPtr[o];
       RouteInt(stepHours * 3600.0f, &nodesPtr[c], &kwNodesPtr[c], fastFlowPtr[c], slowFlowPtr[c]);
