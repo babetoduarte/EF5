@@ -18,5 +18,5 @@ cd build
 #Compile for CPU Multicore
 #CC=pgcc CXX=pgc++ LDFLAGS="-L${GEOTIFF}/lib -lgeotiff" CPPFLAGS="-I${GEOTIFF}/include" CXXFLAGS+=" -std=c++11 -Minfo=accel -ta=multicore" ../configure
 #Compile for CPU with OpenMP
-../configure
+CXXFLAGS+=" -std=c++11 " ../configure
 make -j
