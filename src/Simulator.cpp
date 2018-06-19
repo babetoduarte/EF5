@@ -1579,8 +1579,11 @@ assert(gridSize == currentQ.size());
 
 #if _OPENMP
 #ifndef _WIN32
+    //FIX ERRORS BY ADDING THE TWO FOLLOWING LINES TAKEN FROM ZAC'S EF5 LINES 692,693
+    double endTime = omp_get_wtime(); //JORGE
+    double timeDiff = endTime - beginTime; //JORGE
     NORMAL_LOGF(" %f sec", endTime - beginTime);
-    timeTotal += timeDiff;
+    timeTotal += 0; //timeDiff;
     timeCount++;
     if (timeCount == 250) {
       NORMAL_LOGF(" (%f sec avg)", timeTotal / timeCount);

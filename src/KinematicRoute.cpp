@@ -288,14 +288,18 @@ bool KWRoute::Route(float stepHours, std::vector<float> *fastFlow,
 
   dischargePtr = discharge->data();
   long lvlSize = levelsSize;
+//#pragma omp parallel //JORGE
 #pragma acc parallel vector_length(32) default(present) //present(nodesPtr[0:gridSize], kwNodesPtr[0:gridSize], fastFlowPtr[0:gridSize], slowFlowPtr[0:gridSize], dischargePtr[0:gridSize], orderingPtr[0:gridSize], levelsPtr[0:levelsSize]) //JOE
 #pragma acc loop seq //JOE
+//#pragma omp single //JORGE
+#pragma omp parallel for //JORGE
   for(unsigned long lvl = 0; lvl < lvlSize - 1; lvl++) {
     const auto lvlstart = levelsPtr[lvl];
     const auto lvlend = levelsPtr[lvl + 1];
     // #pragma acc parallel loop independent async(1) default(present)
     //#pragma acc parallel loop independent default(present) //Simone
 #pragma acc loop independent //JOE
+//#pragma omp parallel for //JORGE
     for(unsigned long o = lvlstart; o < lvlend; o++) {
       const auto c = orderingPtr[o];
       RouteInt(stepHours * 3600.0f, &nodesPtr[c], &kwNodesPtr[c], fastFlowPtr[c], slowFlowPtr[c]);
@@ -306,6 +310,8 @@ bool KWRoute::Route(float stepHours, std::vector<float> *fastFlow,
   // #pragma acc wait(1)
 
 #pragma acc parallel loop independent default(present)
+//#pragma omp ordered //JORGE 
+#pragma omp parallel for //JORGE
   for (size_t i = 0; i < numNodes; i++)
   {
     KWGridNode *cNode = &(kwNodesPtr[i]);

@@ -11,6 +11,10 @@
 
 #GEOTIFF=$(spack find --paths libgeotiff | tail -n 1 | awk '{print $2}')
 
+# IF COMPILING IN HYDROS(FLASH) SERVER 10.252
+# EXECUTE THE FOLLOWING LINE BEFORE COMPILING
+# scl enable devtoolset-2 bash 
+
 cd .. && autoreconf --force --Install
 cd build
 #Compile for GPU
@@ -19,4 +23,6 @@ cd build
 #CC=pgcc CXX=pgc++ LDFLAGS="-L${GEOTIFF}/lib -lgeotiff" CPPFLAGS="-I${GEOTIFF}/include" CXXFLAGS+=" -std=c++11 -Minfo=accel -ta=multicore" ../configure
 #Compile for CPU with OpenMP
 CXXFLAGS+=" -std=c++11 -fopenmp" ../configure
+#Compile without OpenMP
+#CXXFLAGS+=" -std=c++11 " ../configure
 make -j
