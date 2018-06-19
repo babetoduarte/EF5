@@ -300,6 +300,7 @@ bool KWRoute::Route(float stepHours, std::vector<float> *fastFlow,
     //#pragma acc parallel loop independent default(present) //Simone
 #pragma acc loop independent //JOE
 //#pragma omp parallel for //JORGE
+//#pragma omp critical
     for(unsigned long o = lvlstart; o < lvlend; o++) {
       const auto c = orderingPtr[o];
       RouteInt(stepHours * 3600.0f, &nodesPtr[c], &kwNodesPtr[c], fastFlowPtr[c], slowFlowPtr[c]);
