@@ -125,6 +125,7 @@ bool CRESTModel::WaterBalance(float stepHours, std::vector<float> *precip,
   float *soilMoisturePtr = soilMoisture->data();
 
 #pragma acc parallel loop default(present)
+#pragma omp parallel for
   for (size_t i = 0; i < numNodes; i++) {
     WaterBalanceInt(&nodesPtr[i], &crestNodesPtr[i], stepHours, precipPtr[i], petPtr[i], &fastFlowPtr[i], &slowFlowPtr[i]);
     soilMoisturePtr[i] = crestNodesPtr[i].states[STATE_CREST_SM] * 100.0 / crestNodesPtr[i].params[PARAM_CREST_WM];

@@ -288,19 +288,16 @@ bool KWRoute::Route(float stepHours, std::vector<float> *fastFlow,
 
   dischargePtr = discharge->data();
   long lvlSize = levelsSize;
-//#pragma omp parallel //JORGE
 #pragma acc parallel vector_length(32) default(present) //present(nodesPtr[0:gridSize], kwNodesPtr[0:gridSize], fastFlowPtr[0:gridSize], slowFlowPtr[0:gridSize], dischargePtr[0:gridSize], orderingPtr[0:gridSize], levelsPtr[0:levelsSize]) //JOE
 #pragma acc loop seq //JOE
-//#pragma omp single //JORGE
-#pragma omp parallel for //JORGE
+// OpenMP Will run this loop sequentially //JORGE
   for(unsigned long lvl = 0; lvl < lvlSize - 1; lvl++) {
     const auto lvlstart = levelsPtr[lvl];
     const auto lvlend = levelsPtr[lvl + 1];
     // #pragma acc parallel loop independent async(1) default(present)
     //#pragma acc parallel loop independent default(present) //Simone
 #pragma acc loop independent //JOE
-//#pragma omp parallel for //JORGE
-//#pragma omp critical
+#pragma omp parallel for
     for(unsigned long o = lvlstart; o < lvlend; o++) {
       const auto c = orderingPtr[o];
       RouteInt(stepHours * 3600.0f, &nodesPtr[c], &kwNodesPtr[c], fastFlowPtr[c], slowFlowPtr[c]);
@@ -311,8 +308,7 @@ bool KWRoute::Route(float stepHours, std::vector<float> *fastFlow,
   // #pragma acc wait(1)
 
 #pragma acc parallel loop independent default(present)
-//#pragma omp ordered //JORGE 
-#pragma omp parallel for //JORGE
+#pragma omp parallel for
   for (size_t i = 0; i < numNodes; i++)
   {
     KWGridNode *cNode = &(kwNodesPtr[i]);
@@ -399,10 +395,11 @@ void KWRoute::RouteInt(float stepSeconds, GridNode *node, KWGridNode *cNode,
 
     cNode->states[STATE_KW_PQ] = newq;
     // Simone: atomic bug
-    // if (node->downStreamNode != INVALID_DOWNSTREAM_NODE) {
-    //   #pragma acc atomic update
-    //   kwNodes[nodes->at(node->downStreamNode).modelIndex].incomingWaterOverland += newq;
-    // }
+    if (node->downStreamNode != INVALID_DOWNSTREAM_NODE) {
+      #pragma acc atomic update
+      #pragma omp atomic
+      kwNodes[nodes->at(node->downStreamNode).modelIndex].incomingWaterOverland += newq;
+    }
     // Simone: atomic bug
 
     cNode->incomingWater[KW_LAYER_FASTFLOW] = newq;
@@ -552,10 +549,11 @@ void KWRoute::RouteInt(float stepSeconds, GridNode *node, KWGridNode *cNode,
     cNode->states[STATE_KW_PQ] =
       newWater; // Update previous Q for further routing if "steps" > 1
     // Simone: atomic bug
-    // if (node->downStreamNode != INVALID_DOWNSTREAM_NODE) {
-    //   #pragma acc atomic update
-    //   kwNodes[nodes->at(node->downStreamNode).modelIndex].incomingWaterChannel += newWater;
-    // }
+    if (node->downStreamNode != INVALID_DOWNSTREAM_NODE) {
+      #pragma acc atomic update
+      #pragma omp atomic
+      kwNodes[nodes->at(node->downStreamNode).modelIndex].incomingWaterChannel += newWater;
+    }
     // Simone: atomic bug
 
     cNode->incomingWater[KW_LAYER_FASTFLOW] = newWater;
