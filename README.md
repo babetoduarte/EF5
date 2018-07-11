@@ -24,6 +24,9 @@ Clone the source code from GitHub.
 ### OS X
 
 Clone the source code from GitHub. Use the EF5 Xcode project found in the EF5 folder and compile the project.
+Alternatively, run the following command from the terminal on EF5's root folder:
+
+`xcodebuild -project EF5/EF5.xcodeproj -alltargets -configuration Release `
 
 ### Windows
 
